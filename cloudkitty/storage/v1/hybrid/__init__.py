@@ -69,13 +69,13 @@ class HybridStorage(BaseStorage):
         self._hybrid_backend.init()
 
     def get_state(self, tenant_id=None):
-        session = db.get_session()
-        q = utils.model_query(self.state_model, session)
-        if tenant_id:
-            q = q.filter(self.state_model.tenant_id == tenant_id)
-        q = q.order_by(self.state_model.state.desc())
-        r = q.first()
-        return r.state if r else None
+        with db.session_for_read() as session:
+            q = utils.model_query(self.state_model, session)
+            if tenant_id:
+                q = q.filter(self.state_model.tenant_id == tenant_id)
+            q = q.order_by(self.state_model.state.desc())
+            r = q.first()
+            return r.state if r else None
 
     def _set_state(self, tenant_id, state):
         self._check_session(tenant_id)
