@@ -56,13 +56,6 @@ class HybridStorage(BaseStorage):
             HYBRID_BACKENDS_NAMESPACE,
             cfg.CONF.storage_hybrid.backend,
             invoke_on_load=True).driver
-        self._sql_session = {}
-
-    def _check_session(self, tenant_id):
-        session = self._sql_session.get(tenant_id, None)
-        if not session:
-            self._sql_session[tenant_id] = db.get_session()
-            self._sql_session[tenant_id].begin()
 
     def init(self):
         migration.upgrade('head')
@@ -78,23 +71,17 @@ class HybridStorage(BaseStorage):
             return r.state if r else None
 
     def _set_state(self, tenant_id, state):
-        self._check_session(tenant_id)
-        session = self._sql_session[tenant_id]
-        q = utils.model_query(self.state_model, session)
-        if tenant_id:
-            q = q.filter(self.state_model.tenant_id == tenant_id)
-        r = q.first()
-        do_commit = False
-        if r:
-            if state > r.state:
-                q.update({'state': state})
-                do_commit = True
-        else:
-            state = self.state_model(tenant_id=tenant_id, state=state)
-            session.add(state)
-            do_commit = True
-        if do_commit:
-            session.commit()
+        with db.session_for_write() as session:
+            q = utils.model_query(self.state_model, session)
+            if tenant_id:
+                q = q.filter(self.state_model.tenant_id == tenant_id)
+            r = q.first()
+            if r:
+                if state > r.state:
+                    q.update({'state': state})
+            else:
+                state = self.state_model(tenant_id=tenant_id, state=state)
+                session.add(state)
 
     def _commit(self, tenant_id):
         self._hybrid_backend.commit(tenant_id, self.get_state(tenant_id))
@@ -105,7 +92,6 @@ class HybridStorage(BaseStorage):
     def _post_commit(self, tenant_id):
         self._set_state(tenant_id, self.usage_start_dt.get(tenant_id))
         super(HybridStorage, self)._post_commit(tenant_id)
-        del self._sql_session[tenant_id]
 
     def get_total(self, begin=None, end=None, tenant_id=None,
                   service=None, groupby=None):

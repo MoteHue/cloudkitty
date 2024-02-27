@@ -35,34 +35,24 @@ class SQLAlchemyStorage(storage.BaseStorage):
 
     def __init__(self, **kwargs):
         super(SQLAlchemyStorage, self).__init__(**kwargs)
-        self._session = {}
 
     @staticmethod
     def init():
         migration.upgrade('head')
 
     def _pre_commit(self, tenant_id):
-        self._check_session(tenant_id)
         if not self._has_data.get(tenant_id):
             empty_frame = {'vol': {'qty': 0, 'unit': 'None'},
                            'rating': {'price': 0}, 'desc': ''}
             self._append_time_frame('_NO_DATA_', empty_frame, tenant_id)
 
     def _commit(self, tenant_id):
-        self._session[tenant_id].commit()
+        super(SQLAlchemyStorage, self)._commit(tenant_id)
 
     def _post_commit(self, tenant_id):
         super(SQLAlchemyStorage, self)._post_commit(tenant_id)
-        del self._session[tenant_id]
-
-    def _check_session(self, tenant_id):
-        session = self._session.get(tenant_id)
-        if not session:
-            self._session[tenant_id] = db.get_session()
-            self._session[tenant_id].begin()
 
     def _dispatch(self, data, tenant_id):
-        self._check_session(tenant_id)
         for service in data:
             for frame in data[service]:
                 self._append_time_frame(service, frame, tenant_id)
