@@ -32,7 +32,7 @@ def _create_facade_lazily():
 
 _CONTEXT = threading.local()
 
-# TODO(mattcrees): Replace usage and remove once unit tests are fixed.
+# TODO(mattcrees): Remove once unit tests are fixed.
 def get_engine():
     facade = _create_facade_lazily()
     return facade.get_legacy_facade().get_engine()
